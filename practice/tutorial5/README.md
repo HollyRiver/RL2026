@@ -22,7 +22,7 @@ target = reward(s, a) + gamma * max(Q(s'))
 * cartpole problem의 해결
 > input dimension: 4 (위치, 가속도, 봉의 각도, 봉의 각도에 대한 가속도)
 >
-> output dimension: 2 (Binary Classification, 왼쪽/오른쪽으로 이동)
+> output dimension: 2 (왼쪽/오른쪽 이동에 대한 가치 추정값)
 
 * 학습 데이터 (`Memory`)
 > size만큼 이전의 `[s, a, r, s', t]`를 저장하는 메모리 마련. state, action, reward, nextState, isFinal
@@ -73,6 +73,6 @@ target = reward(s, a) + gamma * max(Q(s'))
 >
 > 그 이후 step에서는 TargetModel에서 가치 추정, Model만 업데이트
 >
-> true label y값(target)은 해당 state-action으로 얻은 보상에 새로운 상태에서 얻을 수 있는 최대 가치 추정치로 계산됨
+> true label y값(target)은 해당 state-action으로 얻은 보상에 새로운 상태에서 얻을 수 있는 최대 가치 추정치로 계산되며, 실제로 하지 않은 행동의 경우 업데이트를 수행하지 않는 것과 유사한 효과를 가지도록 해당 행동들의 레이블값은 모델 추정값과 동일하게 설정함 (아마도?)
 
 * 그 외 Q-Learning 코드는 동일하게 구성하면 됨

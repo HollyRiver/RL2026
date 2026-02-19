@@ -131,7 +131,7 @@ if __name__ == '__main__':
                 state = nextState
             else:
                 # Q-learn stuff
-                reward = -200
+                reward = -500
                 qlearn.learn(state, action, reward, nextState)
                 last_time_steps = numpy.append(last_time_steps, [int(t + 1)])
                 break

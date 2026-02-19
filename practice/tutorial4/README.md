@@ -10,7 +10,8 @@ https://github.com/vmayoral/basic_reinforcement_learning
 * pole attached by an un-actuated joint to a cart.
 * 막대가 카트에 수동 관절 형태로 연결된 상태, 카트는 마찰 없이 좌우로만 움직일 수 있음.
 * 막대가 바닥에 닿지 않도록 해야 함
-* 막대가 지표면과 수직인 상태에서 좌우로 12도 이상 회전하거나 카트가 화면을 벗어나면(중앙에서 2.4만큼 이동) 에피소드 종료
+* 막대가 지표면과 수직인 상태에서 좌우로 12도 이상 회전하거나 카트가 화면을 벗어나면(중앙에서 2.4만큼 이동) 에피소드 종료. 500 time-step 이후 truncated
+* 매 time-step마다 1씩 보상 제공
 
 
 ### Adapting Q-learning

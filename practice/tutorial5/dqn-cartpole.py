@@ -14,12 +14,14 @@ Code based on @wingedsheep's work at https://gist.github.com/wingedsheep/4199594
         @author: Victor Mayoral Vilches <victor@erlerobotics.com>
 
         @editor: HollyRiver
-            코드 최신화
+            코드 최신화, 가치 추론 비효율성 해소
 '''
 
 import gymnasium as gym
+from gymnasium.wrappers import RecordVideo
 import random
 import numpy as np
+from tqdm import tqdm
 from keras.models import Sequential
 from keras import optimizers
 from keras.layers import Dense, Dropout, Activation
@@ -58,7 +60,7 @@ class Memory:
         
         size 크기의 데이터셋을 랜덤추출
         """
-        indices = random.sample(np.arange(len(self.states)), min(size,len(self.states)) )
+        indices = random.sample(list(range(len(self.states))), min(size,len(self.states)))
         miniBatch = []
         for index in indices:
             miniBatch.append({'state': self.states[index],'action': self.actions[index], 'reward': self.rewards[index], 'newState': self.newStates[index], 'isFinal': self.finals[index]})
@@ -164,7 +166,7 @@ class DeepQ:
                     model.add(Dropout(dropout))
             model.add(Dense(self.output_size, kernel_initializer='lecun_uniform', bias=bias))
             model.add(Activation("linear"))
-        optimizer = optimizers.RMSprop(lr=learningRate, rho=0.9, epsilon=1e-06)
+        optimizer = optimizers.RMSprop(learning_rate=learningRate, rho=0.9, epsilon=1e-06)
         model.compile(loss="mse", optimizer=optimizer)
         model.summary()
         return model
@@ -191,7 +193,7 @@ class DeepQ:
                     model.add(Activation(activationType))
             model.add(Dense(self.output_size, kernel_initializer='lecun_uniform'))
             model.add(Activation("linear"))
-        optimizer = optimizers.RMSprop(lr=learningRate, rho=0.9, epsilon=1e-06)
+        optimizer = optimizers.RMSprop(learning_rate=learningRate, rho=0.9, epsilon=1e-06)
         model.compile(loss="mse", optimizer=optimizer)
         model.summary()
         return model
@@ -286,36 +288,34 @@ class DeepQ:
             return self.memory.getMemory(self.memory.getCurrentSize() - 1)
 
     def learnOnMiniBatch(self, miniBatchSize, useTargetNetwork=True):
-        # Do not learn until we've got self.learnStart samples        
+        # Do not learn until we've got self.learnStart samples
         if self.memory.getCurrentSize() > self.learnStart:
             # learn in batches of 128
+            ## 추론 알고리즘 수정: 배치를 한번에 추론
             miniBatch = self.memory.getMiniBatch(miniBatchSize)
-            X_batch = np.empty((0,self.input_size), dtype = np.float64)
-            Y_batch = np.empty((0,self.output_size), dtype = np.float64)
-            for sample in miniBatch:
-                isFinal = sample['isFinal']
-                state = sample['state']
-                action = sample['action']
-                reward = sample['reward']
-                newState = sample['newState']
 
-                qValues = self.getQValues(state)
-                if useTargetNetwork:
-                    qValuesNewState = self.getTargetQValues(newState)
-                else :
-                    qValuesNewState = self.getQValues(newState)
-                targetValue = self.calculateTarget(qValuesNewState, reward, isFinal)
+            states = np.array([item['state'] for item in miniBatch])
+            next_states = np.array([item['newState'] for item in miniBatch])
+            actions = np.array([item['action'] for item in miniBatch])
+            rewards = np.array([item['reward'] for item in miniBatch])
+            finals = np.array([item['isFinal'] for item in miniBatch])
 
-                X_batch = np.append(X_batch, np.array([state.copy()]), axis=0)
-                Y_sample = qValues.copy()
-                Y_sample[action] = targetValue
-                Y_batch = np.append(Y_batch, np.array([Y_sample]), axis=0)
-                if isFinal:
-                    X_batch = np.append(X_batch, np.array([newState.copy()]), axis=0)
-                    Y_batch = np.append(Y_batch, np.array([[reward]*self.output_size]), axis=0)
-            self.model.fit(X_batch, Y_batch, batch_size = len(miniBatch), epochs=1, verbose = 0)
+            qValues = self.model.predict(states, verbose = 0)
+            
+            if useTargetNetwork:
+                qValuesNewState = self.targetModel.predict(next_states)
+            else :
+                qValuesNewState = self.model.predict(next_states)
 
-env = gym.make('CartPole-v1')
+            targetValues = rewards + (1-finals) * self.discountFactor * np.max(qValuesNewState, axis = 1)
+
+            Y_batch = qValues.copy()
+            Y_batch[np.arange(miniBatchSize), actions] = targetValues
+
+            self.model.fit(states, Y_batch, batch_size = len(miniBatch), epochs=1, verbose = 0)
+
+env = gym.make('CartPole-v1', render_mode="rgb_array")
+env = RecordVideo(env, "cartpole-experiment-1", episode_trigger = lambda count: count % 100 == 0)
 
 epochs = 1000
 steps = 100000
@@ -343,8 +343,7 @@ for epoch in range(epochs):
     observation, info = env.reset()
     print(explorationRate)
     # number of timesteps
-    for t in range(steps):
-        # env.render()
+    for t in tqdm(range(steps)):
         qValues = deepQ.getQValues(observation)
 
         action = deepQ.selectAction(qValues, explorationRate)
@@ -353,14 +352,15 @@ for epoch in range(epochs):
 
         done = terminated or truncated
 
-        if (t >= 199):
+        ## max steps = 500
+        if t >= 499:
             print("reached the end! :D")
             done = True
-            # reward = 200            
+            # reward = 500
 
-        if done and t < 199:
+        if done and t < 499:
             print("decrease reward")
-            # reward -= 200
+            # reward -= 500
         deepQ.addMemory(observation, action, reward, newObservation, done)
 
         if stepCounter >= learnStart:
@@ -391,3 +391,5 @@ for epoch in range(epochs):
     explorationRate *= 0.995
     # explorationRate -= (2.0/epochs)
     explorationRate = max (0.05, explorationRate)
+
+env.close()
