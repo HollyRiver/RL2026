@@ -14,7 +14,7 @@ Code based on @wingedsheep's work at https://gist.github.com/wingedsheep/4199594
         @author: Victor Mayoral Vilches <victor@erlerobotics.com>
 
         @editor: HollyRiver
-            코드 최신화, 가치 추론 비효율성 해소
+            코드 최신화, model predict 비효율성 해소, 학습 속도 증대(너무 느림... exploration rate을 에피소드마다 더 감소, lr 4배 증가, 총 에폭 1/5, TargetNetwork 1/10 지점 활성화)
 '''
 
 import gymnasium as gym
@@ -315,21 +315,21 @@ class DeepQ:
             self.model.fit(states, Y_batch, batch_size = len(miniBatch), epochs=1, verbose = 0)
 
 env = gym.make('CartPole-v1', render_mode="rgb_array")
-env = RecordVideo(env, "cartpole-experiment-1", episode_trigger = lambda count: count % 100 == 0)
+env = RecordVideo(env, "cartpole-experiment-1", episode_trigger = lambda count: count % 25 == 0)
 
-epochs = 1000
-steps = 100000
-updateTargetNetwork = 10000
+epochs = 100
+steps = 600
+updateTargetNetwork = 1000
 explorationRate = 1
 minibatch_size = 128
 learnStart = 128
-learningRate = 0.00025
+learningRate = 0.001
 discountFactor = 0.99
 memorySize = 1000000
 
-last100Scores = [0] * 100
-last100ScoresIndex = 0
-last100Filled = False
+last25Scores = [0] * 25
+last25ScoresIndex = 0
+last25Filled = False
 
 deepQ = DeepQ(4, 2, memorySize, discountFactor, learningRate, learnStart)
 # deepQ.initNetworks([30,30,30])
@@ -372,15 +372,15 @@ for epoch in range(epochs):
         observation = newObservation
 
         if done:
-            last100Scores[last100ScoresIndex] = t
-            last100ScoresIndex += 1
-            if last100ScoresIndex >= 100:
-                last100Filled = True
-                last100ScoresIndex = 0
-            if not last100Filled:
+            last25Scores[last25ScoresIndex] = t
+            last25ScoresIndex += 1
+            if last25ScoresIndex >= 25:
+                last25Filled = True
+                last25ScoresIndex = 0
+            if not last25Filled:
                 print("Episode ",epoch," finished after {} timesteps".format(t+1))
             else :
-                print("Episode ",epoch," finished after {} timesteps".format(t+1)," last 100 average: ",(sum(last100Scores)/len(last100Scores)))
+                print("Episode ",epoch," finished after {} timesteps".format(t+1)," last 50 average: ",(sum(last25Scores)/len(last25Scores)))
             break
 
         stepCounter += 1
@@ -388,7 +388,7 @@ for epoch in range(epochs):
             deepQ.updateTargetNetwork()
             print("updating target network")
 
-    explorationRate *= 0.995
+    explorationRate *= 0.975
     # explorationRate -= (2.0/epochs)
     explorationRate = max (0.05, explorationRate)
 
