@@ -1,3 +1,9 @@
+"""
+alternative exploration method:
+    epsilon 확률로 Magnitude 계산 후 노이즈 삽입. 노이즈가 섞인 Value 중 가장 높은 값을 선택
+    완전 무작위가 아닌 순위 변동을 유도하는 방식...
+"""
+
 import random
 
 

@@ -8,8 +8,8 @@ import pdb
 import cellular
 # reload(cellular)  # Python 2
 importlib.reload(cellular)
-import qlearn_mod_random as qlearn # to use the alternative exploration method
-#import qlearn # to use standard exploration method
+# import qlearn_mod_random as qlearn # to use the alternative exploration method
+import qlearn # to use standard exploration method
 
 # reload(qlearn)  # Python 2
 importlib.reload(cellular)  # Python 3
@@ -136,8 +136,8 @@ world = cellular.World(Cell, directions=directions, filename='../worlds/waco.txt
 world.age = 0
 
 world.addAgent(cheese, cell=pickRandomLocation())
-world.addAgent(cat)
-world.addAgent(mouse)
+world.addAgent(cat, cell = pickRandomLocation())
+world.addAgent(mouse, cell = pickRandomLocation())
 
 epsilonx = (0,100000)
 epsilony = (0.1,0)

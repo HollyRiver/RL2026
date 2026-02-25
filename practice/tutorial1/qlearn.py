@@ -5,11 +5,7 @@ import random
 class QLearn:
     """Q-Learning class. Implements the Q-Learning algorithm."""
 
-    def __init__(self,
-                 actions,
-                 epsilon=0.1,
-                 alpha=0.2,
-                 gamma=0.9):
+    def __init__(self, actions, epsilon=0.1, alpha=0.2, gamma=0.9):
         """Initialize an empty dictionary for Q-Values."""
         # Q-Values are stored in a dictionary, with the state-action
         self.q = {}
@@ -90,14 +86,3 @@ class QLearn:
         # Learn the Q-Value based on current reward and future
         # expected rewards.
         self.learnQ(state1, action1, reward, reward + self.gamma * maxqnew)
-
-
-# A utility function to format floating point numbers. Not
-# directly related to Q-learning.
-def ff(f, n):
-    """Format a floating point number to a string with n digits."""
-    fs = '{:f}'.format(f)
-    if len(fs) < n:
-        return ('{:'+n+'s}').format(fs)
-    else:
-        return fs[:n]
