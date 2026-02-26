@@ -18,6 +18,7 @@ directions = 8
 
 lookdist = 2
 lookcells = []
+
 for i in range(-lookdist,lookdist+1):
     for j in range(-lookdist,lookdist+1):
         if (abs(i) + abs(j) <= lookdist) and (i != 0 or j != 0):
@@ -73,8 +74,12 @@ class Mouse(cellular.Agent):
 
     def __init__(self):
         self.ai = None
-        self.ai = qlearn.QLearn(actions=range(directions),
-                                alpha=0.1, gamma=0.9, epsilon=0.1)
+        self.ai = qlearn.QLearn(
+            actions=range(directions),
+            alpha=0.1,
+            gamma=0.9,
+            epsilon=0.1
+        )
         self.eaten = 0
         self.fed = 0
         self.lastState = None
@@ -91,7 +96,12 @@ class Mouse(cellular.Agent):
             self.eaten += 1
             reward = -100
             if self.lastState is not None:
-                self.ai.learn(self.lastState, self.lastAction, reward, state)
+                self.ai.learn(
+                    self.lastState,
+                    self.lastAction,
+                    reward,
+                    state
+                )
             self.lastState = None
 
             self.cell = pickRandomLocation()
@@ -125,14 +135,15 @@ class Mouse(cellular.Agent):
             else:
                 return 1 if cell.wall else 0
 
-        return tuple([cellvalue(self.world.getWrappedCell(self.cell.x + j, self.cell.y + i))
-                      for i,j in lookcells])
+        return tuple([cellvalue(self.world.getWrappedCell(
+            self.cell.x + j, self.cell.y + i)) for i,j in lookcells])
 
 mouse = Mouse()
 cat = Cat()
 cheese = Cheese()
 
-world = cellular.World(Cell, directions=directions, filename='../worlds/waco.txt')
+world = cellular.World(Cell, directions=directions,
+                       filename='../worlds/waco.txt')
 world.age = 0
 
 world.addAgent(cheese, cell=pickRandomLocation())

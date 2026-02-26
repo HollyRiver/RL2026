@@ -12,10 +12,9 @@ Inspired by https://gym.openai.com/evaluations/eval_kWknKOkPQ7izrixdhriurA
 '''
 import gymnasium as gym
 from gymnasium.wrappers import RecordVideo
-from functools import reduce
-import numpy
+import numpy as np
 import random
-import pandas
+import pandas as pd
 
 class QLearn:
     def __init__(self, actions, epsilon, alpha, gamma):
@@ -71,33 +70,32 @@ def build_state(features):
     return int("".join(map(lambda feature: str(int(feature)), features)))
 
 def to_bin(value, bins):
-    return numpy.digitize(x=[value], bins=bins)[0]
+    return np.digitize(x=[value], bins=bins)[0]
 
 if __name__ == '__main__':
     env = gym.make('CartPole-v1', render_mode="rgb_array")
-    env = RecordVideo(env, "cartpole-experiment-1", episode_trigger = lambda count: count % 500 == 0)
+    env = RecordVideo(env, "cartpole-experiment-1", episode_trigger = lambda count: count % 200 == 0)
 
     goal_average_steps = 195    ## 안쓰는 변수인듯
     max_number_of_steps = 500   ## episode 당 최대 steps 수 (Truncate)
-    last_time_steps = numpy.ndarray(0)  ## time_step tracing
+    last_time_steps = np.ndarray(0)  ## time_step tracing
     n_bins = 8                  ## position 구간 수
     n_bins_angle = 10           ## angle 구간 수
 
     number_of_features = env.observation_space.shape[0] ## 얘도 안쓰는 변수인듯
-    last_time_steps = numpy.ndarray(0)
 
     # Number of states is huge so in order to simplify the situation
     # we discretize the space to: 10 ** number_of_features
-    cart_position_bins = pandas.cut([-4.8, 4.8], bins=n_bins, retbins=True)[1][1:-1]        ## 카트 위치
-    pole_angle_bins = pandas.cut([-0.418, 0.418], bins=n_bins_angle, retbins=True)[1][1:-1] ## 막대 각도 (radian)
-    cart_velocity_bins = pandas.cut([-1, 1], bins=n_bins, retbins=True)[1][1:-1]            ## 카트 가속도
-    angle_rate_bins = pandas.cut([-3.5, 3.5], bins=n_bins_angle, retbins=True)[1][1:-1]     ## 막대 각도 변경에 대한 가속도
+    cart_position_bins = pd.cut([-4.8, 4.8], bins=n_bins, retbins=True)[1][1:-1]        ## 카트 위치
+    pole_angle_bins = pd.cut([-0.418, 0.418], bins=n_bins_angle, retbins=True)[1][1:-1] ## 막대 각도 (radian)
+    cart_velocity_bins = pd.cut([-1, 1], bins=n_bins, retbins=True)[1][1:-1]            ## 카트 가속도
+    angle_rate_bins = pd.cut([-3.5, 3.5], bins=n_bins_angle, retbins=True)[1][1:-1]     ## 막대 각도 변경에 대한 가속도
 
     # The Q-learn algorithm
     qlearn = QLearn(actions=range(env.action_space.n),
                     alpha=0.5, gamma=0.90, epsilon=0.1)
 
-    for i_episode in range(3001):
+    for i_episode in range(1001):
         observation, info = env.reset()
 
         cart_position, pole_angle, cart_velocity, angle_rate_of_change = observation
@@ -131,14 +129,15 @@ if __name__ == '__main__':
                 state = nextState
             else:
                 # Q-learn stuff
-                reward = -500
+                if terminated:
+                    reward = -500
                 qlearn.learn(state, action, reward, nextState)
-                last_time_steps = numpy.append(last_time_steps, [int(t + 1)])
+                last_time_steps = np.append(last_time_steps, [int(t + 1)])
                 break
 
     l = last_time_steps.tolist()
     l.sort()
     print("Overall score: {:0.2f}".format(last_time_steps.mean()))
-    print("Best 100 score: {:0.2f}".format(reduce(lambda x, y: x + y, l[-100:]) / len(l[-100:])))
+    print("Best 100 score: {:0.2f}".format(sum(l[-100:])/100))
 
     env.close()

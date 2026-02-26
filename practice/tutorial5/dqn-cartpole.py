@@ -15,6 +15,7 @@ Code based on @wingedsheep's work at https://gist.github.com/wingedsheep/4199594
 
         @editor: HollyRiver
             코드 최신화, model predict 비효율성 해소, 학습 속도 증대(너무 느림... exploration rate을 에피소드마다 더 감소, lr 4배 증가, 총 에폭 1/5, TargetNetwork 1/10 지점 활성화)
+            해당 코드는 GPU를 먹지 않음... tensorflow.keras를 붙인 다음 with 문과 함께 사용할 것. (GPU 써도 느림)
 '''
 
 import gymnasium as gym
@@ -28,10 +29,6 @@ from keras.layers import Dense, Dropout, Activation
 from keras.layers import BatchNormalization
 from keras.layers import LeakyReLU
 from keras.regularizers import l2
-
-# import os
-# os.environ["THEANO_FLAGS"] = "mode=FAST_RUN,device=gpu,floatX=float32"
-# import theano
 
 class Memory:
     """
@@ -63,19 +60,12 @@ class Memory:
         indices = random.sample(list(range(len(self.states))), min(size,len(self.states)))
         miniBatch = []
         for index in indices:
-            miniBatch.append({'state': self.states[index],'action': self.actions[index], 'reward': self.rewards[index], 'newState': self.newStates[index], 'isFinal': self.finals[index]})
+            miniBatch.append({'state': self.states[index],'action': self.actions[index],'reward': self.rewards[index],
+                              'newState': self.newStates[index], 'isFinal': self.finals[index]})
         return miniBatch
 
-    def getCurrentSize(self) :
+    def __len__(self) :
         return len(self.states)
-
-    def getMemory(self, index):
-        """
-        Docstring for getMemory
-        
-        특정 인덱스에 접근할 수 있게 만든 함수
-        """
-        return {'state': self.states[index],'action': self.actions[index], 'reward': self.rewards[index], 'newState': self.newStates[index], 'isFinal': self.finals[index]}
 
     def addMemory(self, state, action, reward, newState, isFinal) :
         """
@@ -106,7 +96,7 @@ class DeepQ:
         traditional Q-learning:
             Q(s, a) += alpha * (reward(s,a) + gamma * max(Q(s') - Q(s,a))
         DQN:
-            target = reward(s,a) + gamma * max(Q(s')
+            target = reward(s,a) + gamma * max(Q(s'))
 
     """
     def __init__(self, inputs, outputs, memorySize, discountFactor, learningRate, learnStart):
@@ -127,51 +117,13 @@ class DeepQ:
         self.learningRate = learningRate
    
     def initNetworks(self, hiddenLayers):
-        model = self.createModel(self.input_size, self.output_size, hiddenLayers, "relu", self.learningRate)
+        model = self.createModel(hiddenLayers, "relu", self.learningRate)
         self.model = model
 
-        targetModel = self.createModel(self.input_size, self.output_size, hiddenLayers, "relu", self.learningRate)
+        targetModel = self.createModel(hiddenLayers, "relu", self.learningRate)
         self.targetModel = targetModel
 
-    def createRegularizedModel(self, inputs, outputs, hiddenLayers, activationType, learningRate):
-        bias = True
-        dropout = 0
-        regularizationFactor = 0.01
-        model = Sequential()
-        if len(hiddenLayers) == 0: 
-            model.add(Dense(self.output_size, input_shape=(self.input_size,), kernel_initializer='lecun_uniform', bias=bias))
-            model.add(Activation("linear"))
-        else :
-            if regularizationFactor > 0:
-                model.add(Dense(hiddenLayers[0], input_shape=(self.input_size,), kernel_initializer='lecun_uniform', kernel_regularizer=l2(regularizationFactor),  bias=bias))
-            else:
-                model.add(Dense(hiddenLayers[0], input_shape=(self.input_size,), kernel_initializer='lecun_uniform', bias=bias))
-
-            if (activationType == "LeakyReLU") :
-                model.add(LeakyReLU(alpha=0.01))
-            else :
-                model.add(Activation(activationType))
-            
-            for index in range(1, len(hiddenLayers)):
-                layerSize = hiddenLayers[index]
-                if regularizationFactor > 0:
-                    model.add(Dense(layerSize, kernel_initializer='lecun_uniform', kernel_regularizer=l2(regularizationFactor), bias=bias))
-                else:
-                    model.add(Dense(layerSize, kernel_initializer='lecun_uniform', bias=bias))
-                if (activationType == "LeakyReLU") :
-                    model.add(LeakyReLU(alpha=0.01))
-                else :
-                    model.add(Activation(activationType))
-                if dropout > 0:
-                    model.add(Dropout(dropout))
-            model.add(Dense(self.output_size, kernel_initializer='lecun_uniform', bias=bias))
-            model.add(Activation("linear"))
-        optimizer = optimizers.RMSprop(learning_rate=learningRate, rho=0.9, epsilon=1e-06)
-        model.compile(loss="mse", optimizer=optimizer)
-        model.summary()
-        return model
-
-    def createModel(self, inputs, outputs, hiddenLayers, activationType, learningRate):
+    def createModel(self, hiddenLayers, activationType, learningRate):
         model = Sequential()
         if len(hiddenLayers) == 0: 
             model.add(Dense(self.output_size, input_shape=(self.input_size,), kernel_initializer='lecun_uniform'))
@@ -198,14 +150,6 @@ class DeepQ:
         model.summary()
         return model
 
-    def printNetwork(self):
-        i = 0
-        for layer in self.model.layers:
-            weights = layer.get_weights()
-            print("layer ",i,": ",weights)
-            i += 1
-
-
     def backupNetwork(self, model, backup):
         weightMatrix = []
         for layer in model.layers:
@@ -225,71 +169,21 @@ class DeepQ:
         predicted = self.model.predict(state.reshape(1,len(state)))
         return predicted[0]
 
-    def getTargetQValues(self, state):
-        predicted = self.targetModel.predict(state.reshape(1,len(state)))
-        return predicted[0]
-
-    def getMaxQ(self, qValues):
-        return np.max(qValues)
-
-    def getMaxIndex(self, qValues):
-        return np.argmax(qValues)
-
-    # calculate the target function
-    def calculateTarget(self, qValuesNewState, reward, isFinal):
-        """
-        target = reward(s,a) + gamma * max(Q(s')
-        """
-        if isFinal:
-            return reward
-        else : 
-            return reward + self.discountFactor * self.getMaxQ(qValuesNewState)
-
     # select the action with the highest Q value
     def selectAction(self, qValues, explorationRate):
         rand = random.random()
         if rand < explorationRate :
             action = np.random.randint(0, self.output_size)
         else :
-            action = self.getMaxIndex(qValues)
+            action = np.argmax(qValues)
         return action
-
-    def selectActionByProbability(self, qValues, bias):
-        qValueSum = 0
-        shiftBy = 0
-        for value in qValues:
-            if value + shiftBy < 0:
-                shiftBy = - (value + shiftBy)
-        shiftBy += 1e-06
-
-        for value in qValues:
-            qValueSum += (value + shiftBy) ** bias
-
-        probabilitySum = 0
-        qValueProbabilities = []
-        for value in qValues:
-            probability = ((value + shiftBy) ** bias) / float(qValueSum)
-            qValueProbabilities.append(probability + probabilitySum)
-            probabilitySum += probability
-        qValueProbabilities[len(qValueProbabilities) - 1] = 1
-
-        rand = random.random()
-        i = 0
-        for value in qValueProbabilities:
-            if (rand <= value):
-                return i
-            i += 1
 
     def addMemory(self, state, action, reward, newState, isFinal):
         self.memory.addMemory(state, action, reward, newState, isFinal)
 
-    def learnOnLastState(self):
-        if self.memory.getCurrentSize() >= 1:
-            return self.memory.getMemory(self.memory.getCurrentSize() - 1)
-
     def learnOnMiniBatch(self, miniBatchSize, useTargetNetwork=True):
         # Do not learn until we've got self.learnStart samples
-        if self.memory.getCurrentSize() > self.learnStart:
+        if len(self.memory) > self.learnStart:
             # learn in batches of 128
             ## 추론 알고리즘 수정: 배치를 한번에 추론
             miniBatch = self.memory.getMiniBatch(miniBatchSize)
@@ -317,7 +211,7 @@ class DeepQ:
 env = gym.make('CartPole-v1', render_mode="rgb_array")
 env = RecordVideo(env, "cartpole-experiment-1", episode_trigger = lambda count: count % 25 == 0)
 
-epochs = 100
+epochs = 101
 steps = 600
 updateTargetNetwork = 1000
 explorationRate = 1
@@ -356,11 +250,10 @@ for epoch in range(epochs):
         if t >= 499:
             print("reached the end! :D")
             done = True
-            # reward = 500
 
         if done and t < 499:
             print("decrease reward")
-            # reward -= 500
+            reward = -500
         deepQ.addMemory(observation, action, reward, newObservation, done)
 
         if stepCounter >= learnStart:
@@ -388,7 +281,7 @@ for epoch in range(epochs):
             deepQ.updateTargetNetwork()
             print("updating target network")
 
-    explorationRate *= 0.975
+    explorationRate *= 0.97
     # explorationRate -= (2.0/epochs)
     explorationRate = max (0.05, explorationRate)
 
